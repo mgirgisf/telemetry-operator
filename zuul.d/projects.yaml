@@ -49,7 +49,7 @@
         # NOTE: Until the telemetry-tempest-plugin repo is tagged and the new version is used in the tempest image, we need to manually install it as an external plugin to use the autoscaling tests.
         - repository: "https://opendev.org/openstack/telemetry-tempest-plugin.git"
           changeRepository: "https://review.opendev.org/openstack/telemetry-tempest-plugin"
-          changeRefspec: "master"
+          changeRefspec: "refs/changes/56/909856/6"
       # This value is used to populate the `tempestconfRun` parameter of the Tempest CR: https://openstack-k8s-operators.github.io/test-operator/crds.html#tempest-custom-resource
       # https://github.com/openstack-k8s-operators/ci-framework/blob/main/roles/test_operator/defaults/main.yml
       cifmw_tempest_tempestconf_config:
@@ -60,6 +60,8 @@
             service_available.sg_core true
             service_available.aodh true
             telemetry.sg_core_service_url "ceilometer.openstack.svc.cluster.local:3000"
+            telemetry.prometheus_service_url "metric-storage-prometheus.openstack.svc.cluster.local:9090"
+            telemetry_services.metric_backends "prometheus"
       cifmw_test_operator_tempest_include_list: |
         telemetry_tempest_plugin.scenario
         telemetry_tempest_plugin.aodh
