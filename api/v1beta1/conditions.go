@@ -58,6 +58,8 @@ const (
 	DashboardDatasourceReadyCondition condition.Type = "DashboardDatasourceReady"
 
 	DashboardDefinitionReadyCondition condition.Type = "DashboardDefinitionReady"
+
+	OTelPrometheusRuleReadyCondition condition.Type = "OTelPrometheusRuleReady"
 )
 
 // Telemetry Reasons used by API objects.
@@ -201,4 +203,7 @@ const (
 
 	DashboardDefinitionReadyInitMessage = "Dashboard Definition not started"
 	DashboardDefinitionFailedMessage    = "Error occured when trying to install the dashboard definitions: %s"
+
+	OTelPrometheusRuleReadyInitMessage   = "OTel PrometheusRule not started"
+	OTelPrometheusRuleUnableToOwnMessage = "Error occured when trying to own %s"
 )
