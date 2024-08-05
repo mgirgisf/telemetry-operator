@@ -436,35 +436,38 @@ func (r *MetricStorageReconciler) reconcileNormal(
 	}
 
 	// Deploy PrometheusRule for OTel
-	err = r.ensureWatches(ctx, "prometheusrules.monitoring.rhobs", &monv1.PrometheusRule{}, eventHandler)
-	if err != nil {
-		instance.Status.Conditions.MarkFalse(telemetryv1.OTelPrometheusRuleReadyCondition,
-			condition.Reason("Can't own PrometheusRule resource"),
-			condition.SeverityError,
-			telemetryv1.OTelPrometheusRuleUnableToOwnMessage, err)
-		Log.Info("Can't own PrometheusRule resource")
-		return ctrl.Result{RequeueAfter: telemetryv1.PauseBetweenWatchAttempts}, nil
-	}
-	otelPrometheusRule := &monv1.PrometheusRule{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-otel", instance.Name),
-			Namespace: instance.Namespace,
-		},
-	}
-	op, err = controllerutil.CreateOrPatch(ctx, r.Client, otelPrometheusRule, func() error {
-		desiredPrometheusRule := metricstorage.OTelPrometheusRule(instance, serviceLabels)
-		desiredPrometheusRule.Spec.DeepCopyInto(&otelPrometheusRule.Spec)
-		otelPrometheusRule.ObjectMeta.Labels = desiredPrometheusRule.ObjectMeta.Labels
-		err = controllerutil.SetControllerReference(instance, otelPrometheusRule, r.Scheme)
-		return err
-	})
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if op != controllerutil.OperationResultNone {
-		Log.Info(fmt.Sprintf("Prometheus Rules %s successfully changed - operation: %s", otelPrometheusRule.Name, string(op)))
-	}
-	instance.Status.Conditions.MarkTrue(telemetryv1.OTelPrometheusRuleReadyCondition, condition.ReadyMessage)
+	if instance.Spec.otelPrometheusRule.Enabled() {
+		err = r.ensureWatches(ctx, "prometheusrules.monitoring.rhobs", &monv1.PrometheusRule{}, eventHandler)
+		if err != nil {
+			instance.Status.Conditions.MarkFalse(telemetryv1.OTelPrometheusRuleReadyCondition,
+				condition.Reason("Can't own PrometheusRule resource"),
+				condition.SeverityError,
+				telemetryv1.OTelPrometheusRuleUnableToOwnMessage, err)
+			Log.Info("Can't own PrometheusRule resource")
+			return ctrl.Result{RequeueAfter: telemetryv1.PauseBetweenWatchAttempts}, nil
+		}
+		otelPrometheusRule := &monv1.PrometheusRule{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-otel", instance.Name),
+				Namespace: instance.Namespace,
+			},
+		}
+		op, err = controllerutil.CreateOrPatch(ctx, r.Client, otelPrometheusRule, func() error {
+			desiredPrometheusRule := metricstorage.OTelPrometheusRule(instance, serviceLabels)
+			desiredPrometheusRule.Spec.DeepCopyInto(&otelPrometheusRule.Spec)
+			otelPrometheusRule.ObjectMeta.Labels = desiredPrometheusRule.ObjectMeta.Labels
+			err = controllerutil.SetControllerReference(instance, otelPrometheusRule, r.Scheme)
+			return err
+		})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if op != controllerutil.OperationResultNone {
+			Log.Info(fmt.Sprintf("Prometheus Rules %s successfully changed - operation: %s", otelPrometheusRule.Name, string(op)))
+		}
+		instance.Status.Conditions.MarkTrue(telemetryv1.OTelPrometheusRuleReadyCondition, condition.ReadyMessage)
+
+    }
 
 	//
 	// TLS input validation

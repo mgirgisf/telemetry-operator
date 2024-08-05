@@ -40,6 +40,16 @@ spec:
                   stack when the options in "MonitoringStack" aren't enough
                 nullable: true
                 properties:
+                  otelPrometheusRule:
+                    default:
+                      disabled: false 
+                    description: Config for otel PrometheusRule
+                    properties:
+                        disabled:
+                        default: false
+                        description: Enable or disable otel PrometheusRule.
+                        type: boolean
+                    type: object
                   alertmanagerConfig:
                     default:
                       disabled: false
