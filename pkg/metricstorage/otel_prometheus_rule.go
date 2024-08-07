@@ -345,6 +345,13 @@ func OTelPrometheusRule(
 							},
 							Record: "otel:system_cpu_time_seconds_total",
 						},
+						{
+							Expr: intstr.IntOrString{
+								Type:   intstr.String,
+								StrVal: `rate(ceilometer_cpu[1m])`,
+							},
+							Record: "otel:system.cpu.utilization",
+						},
 					},
 				},
 			},
