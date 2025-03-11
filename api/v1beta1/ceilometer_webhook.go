@@ -28,7 +28,6 @@ import (
 type CeilometerDefaults struct {
 	CentralContainerImageURL        string
 	NotificationContainerImageURL   string
-	SgCoreContainerImageURL         string
 	ComputeContainerImageURL        string
 	IpmiContainerImageURL           string
 	ProxyContainerImageURL          string
@@ -74,9 +73,6 @@ func (spec *CeilometerSpec) Default() {
 	}
 	if spec.NotificationImage == "" {
 		spec.NotificationImage = ceilometerDefaults.NotificationContainerImageURL
-	}
-	if spec.SgCoreImage == "" {
-		spec.SgCoreImage = ceilometerDefaults.SgCoreContainerImageURL
 	}
 	if spec.ComputeImage == "" {
 		spec.ComputeImage = ceilometerDefaults.ComputeContainerImageURL

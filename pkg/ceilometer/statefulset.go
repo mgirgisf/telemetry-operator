@@ -164,15 +164,6 @@ func StatefulSet(
 		VolumeMounts:  notificationVolumeMounts,
 		LivenessProbe: notificationLivenessProbe,
 	}
-	sgCoreContainer := corev1.Container{
-		ImagePullPolicy: corev1.PullAlways,
-		Image:           instance.Spec.SgCoreImage,
-		Name:            "sg-core",
-		SecurityContext: &corev1.SecurityContext{
-			RunAsUser: &runAsUser,
-		},
-		VolumeMounts: getSgCoreVolumeMounts(),
-	}
 	proxyContainer := corev1.Container{
 		ImagePullPolicy: corev1.PullAlways,
 		Image:           instance.Spec.ProxyImage,
@@ -202,7 +193,6 @@ func StatefulSet(
 			Containers: []corev1.Container{
 				centralAgentContainer,
 				notificationAgentContainer,
-				sgCoreContainer,
 				proxyContainer,
 			},
 		},

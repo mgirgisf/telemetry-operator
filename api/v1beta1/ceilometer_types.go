@@ -30,8 +30,6 @@ const (
 	CeilometerCentralContainerImage = "quay.io/podified-antelope-centos9/openstack-ceilometer-central:current-podified"
 	// CeilometerNotificationContainerImage - default fall-back image for Ceilometer Notification
 	CeilometerNotificationContainerImage = "quay.io/podified-antelope-centos9/openstack-ceilometer-notification:current-podified"
-	// CeilometerSgCoreContainerImage - default fall-back image for Ceilometer SgCore
-	CeilometerSgCoreContainerImage = "quay.io/openstack-k8s-operators/sg-core:v6.0.0"
 	// CeilometerComputeContainerImage - default fall-back image for Ceilometer Compute
 	CeilometerComputeContainerImage = "quay.io/podified-antelope-centos9/openstack-ceilometer-compute:current-podified"
 	// CeilometerIpmiContainerImage - default fall-back image for Ceilometer Ipmi
@@ -54,9 +52,6 @@ type CeilometerSpec struct {
 
 	// +kubebuilder:validation:Required
 	NotificationImage string `json:"notificationImage"`
-
-	// +kubebuilder:validation:Required
-	SgCoreImage string `json:"sgCoreImage"`
 
 	// +kubebuilder:validation:Required
 	ComputeImage string `json:"computeImage"`
@@ -273,7 +268,6 @@ func SetupDefaultsCeilometer() {
 	// Acquire environmental defaults and initialize Telemetry defaults with them
 	ceilometerDefaults := CeilometerDefaults{
 		CentralContainerImageURL:        util.GetEnvVar("RELATED_IMAGE_CEILOMETER_CENTRAL_IMAGE_URL_DEFAULT", CeilometerCentralContainerImage),
-		SgCoreContainerImageURL:         util.GetEnvVar("RELATED_IMAGE_CEILOMETER_SGCORE_IMAGE_URL_DEFAULT", CeilometerSgCoreContainerImage),
 		NotificationContainerImageURL:   util.GetEnvVar("RELATED_IMAGE_CEILOMETER_NOTIFICATION_IMAGE_URL_DEFAULT", CeilometerNotificationContainerImage),
 		ComputeContainerImageURL:        util.GetEnvVar("RELATED_IMAGE_CEILOMETER_COMPUTE_IMAGE_URL_DEFAULT", CeilometerComputeContainerImage),
 		IpmiContainerImageURL:           util.GetEnvVar("RELATED_IMAGE_CEILOMETER_IPMI_IMAGE_URL_DEFAULT", CeilometerIpmiContainerImage),

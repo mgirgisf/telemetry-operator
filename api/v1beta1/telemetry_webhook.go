@@ -36,7 +36,6 @@ type TelemetryDefaults struct {
 	CentralContainerImageURL        string
 	ComputeContainerImageURL        string
 	NotificationContainerImageURL   string
-	SgCoreContainerImageURL         string
 	ProxyContainerImageURL          string
 	IpmiContainerImageURL           string
 	KsmContainerImageURL            string
@@ -89,9 +88,6 @@ func (spec *TelemetrySpec) Default() {
 	}
 	if spec.Ceilometer.CeilometerSpec.NotificationImage == "" {
 		spec.Ceilometer.CeilometerSpec.NotificationImage = telemetryDefaults.NotificationContainerImageURL
-	}
-	if spec.Ceilometer.CeilometerSpec.SgCoreImage == "" {
-		spec.Ceilometer.CeilometerSpec.SgCoreImage = telemetryDefaults.SgCoreContainerImageURL
 	}
 	if spec.Ceilometer.CeilometerSpec.ProxyImage == "" {
 		spec.Ceilometer.CeilometerSpec.ProxyImage = telemetryDefaults.ProxyContainerImageURL

@@ -229,8 +229,6 @@ spec:
                 description: ServiceUser - optional username used for this service
                   to register in keystone
                 type: string
-              sgCoreImage:
-                type: string
               tls:
                 description: TLS - Parameters related to the TLS
                 properties:
@@ -266,7 +264,6 @@ spec:
             - notificationImage
             - proxyImage
             - secret
-            - sgCoreImage
             type: object
           status:
             description: CeilometerStatus defines the observed state of Ceilometer

@@ -49,19 +49,6 @@ func getVolumes() []corev1.Volume {
 				},
 			},
 		}, {
-			Name: "sg-core-conf-yaml",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					DefaultMode: &configMode,
-					Items: []corev1.KeyToPath{{
-						Key:  "sg-core.conf.yaml",
-						Path: "sg-core.conf.yaml",
-					}},
-					SecretName: configVolume,
-				},
-			},
-		},
-		{
 			Name: "run-httpd",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{Medium: ""},
@@ -94,17 +81,6 @@ func getVolumeMounts(serviceName string) []corev1.VolumeMount {
 			MountPath: "/var/lib/kolla/config_files/config.json",
 			SubPath:   serviceName + "-config.json",
 			ReadOnly:  true,
-		},
-	}
-}
-
-// getSgCoreVolumeMounts - VolumeMounts for SGCore container
-func getSgCoreVolumeMounts() []corev1.VolumeMount {
-	return []corev1.VolumeMount{
-		{
-			Name:      "sg-core-conf-yaml",
-			MountPath: "/etc/sg-core.conf.yaml",
-			SubPath:   "sg-core.conf.yaml",
 		},
 	}
 }
