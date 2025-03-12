@@ -26,7 +26,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
@@ -48,25 +47,6 @@ func StatefulSet(
 	topology *topologyv1.Topology,
 ) (*appsv1.StatefulSet, error) {
 	runAsUser := int64(0)
-
-	// container probes
-	sgRootEndpointCurl := corev1.HTTPGetAction{
-		Path: "/",
-		Port: intstr.IntOrString{Type: intstr.Int, IntVal: int32(CeilometerPrometheusPort)},
-	}
-	sgLivenessProbe := &corev1.Probe{
-		TimeoutSeconds:      30,
-		PeriodSeconds:       30,
-		InitialDelaySeconds: 300,
-	}
-	sgLivenessProbe.HTTPGet = &sgRootEndpointCurl
-
-	sgReadinessProbe := &corev1.Probe{
-		TimeoutSeconds:      30,
-		PeriodSeconds:       30,
-		InitialDelaySeconds: 10,
-	}
-	sgReadinessProbe.HTTPGet = &sgRootEndpointCurl
 
 	//NOTE(mmagr): Once we will be sure (OSP19 timeframe) that we have Ceilometer
 	//             running with heartbeat feature, we can make below probes run much
@@ -118,8 +98,6 @@ func StatefulSet(
 		svc.CertMount = ptr.To(fmt.Sprintf("/etc/pki/tls/certs/%s", tls.CertKey))
 		svc.KeyMount = ptr.To(fmt.Sprintf("/etc/pki/tls/private/%s", tls.PrivateKey))
 
-		sgLivenessProbe.HTTPGet.Scheme = corev1.URISchemeHTTPS
-		sgReadinessProbe.HTTPGet.Scheme = corev1.URISchemeHTTPS
 
 		volumes = append(volumes, svc.CreateVolume(ServiceName))
 		httpdVolumeMounts = append(httpdVolumeMounts, svc.CreateVolumeMounts(ServiceName)...)
@@ -164,23 +142,6 @@ func StatefulSet(
 		VolumeMounts:  notificationVolumeMounts,
 		LivenessProbe: notificationLivenessProbe,
 	}
-	proxyContainer := corev1.Container{
-		ImagePullPolicy: corev1.PullAlways,
-		Image:           instance.Spec.ProxyImage,
-		Name:            "proxy-httpd",
-		SecurityContext: &corev1.SecurityContext{
-			RunAsUser: &runAsUser,
-		},
-		Ports: []corev1.ContainerPort{{
-			ContainerPort: int32(CeilometerPrometheusPort),
-			Name:          "proxy-httpd",
-		}},
-		VolumeMounts:   httpdVolumeMounts,
-		ReadinessProbe: sgReadinessProbe,
-		LivenessProbe:  sgLivenessProbe,
-		Command:        []string{"/usr/sbin/httpd"},
-		Args:           []string{"-DFOREGROUND"},
-	}
 
 	pod := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
@@ -193,7 +154,6 @@ func StatefulSet(
 			Containers: []corev1.Container{
 				centralAgentContainer,
 				notificationAgentContainer,
-				proxyContainer,
 			},
 		},
 	}

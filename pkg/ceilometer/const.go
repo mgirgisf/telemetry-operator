@@ -25,9 +25,6 @@ const (
 	// ServiceType -
 	ServiceType = "Ceilometer"
 
-	// CeilometerPrometheusPort -
-	CeilometerPrometheusPort int = 3000
-
 	// KollaConfigCentral -
 	KollaConfigCentral = "/var/lib/config-data/merged/config-central.json"
 
