@@ -397,6 +397,33 @@ func (r *MetricStorageReconciler) reconcileNormal(
 		instance.Status.PrometheusTLSPatched = false
 	}
 
+	prometheusProxyPatch := metricstorage.PrometheusProxy(instance)
+	err = r.Client.Patch(context.Background(), &prometheusProxyPatch, client.Merge, client.FieldOwner("telemetry-operator"))
+	if err != nil {
+		Log.Error(err, "Can't patch Prometheus resource with Proxy config")
+		return ctrl.Result{}, err
+	}
+	instance.Status.prometheusProxyPatched = true
+} else if instance.Status.prometheusProxyPatched {
+	// Delete the prometheus CR, so it can be automatically restored without the TLS patch
+	prometheus := monv1.Prometheus{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: instance.Namespace,
+			Name:      instance.Name,
+		},
+	}
+	err = r.Client.Delete(context.Background(), &prometheus)
+	if err != nil && !k8s_errors.IsNotFound(err) {
+		instance.Status.Conditions.MarkFalse(telemetryv1.PrometheusReadyCondition,
+			condition.Reason("Can't delete old Prometheus CR to remove proxy configuration"),
+			condition.SeverityError,
+			telemetryv1.PrometheusUnableToRemoveTLSMessage, err)
+		Log.Error(err, "Can't delete old Prometheus CR to remove proxy configuration")
+		return ctrl.Result{}, err
+	}
+	instance.Status.prometheusProxyPatched = false
+}
+
 	// Create the PrometheusEndpoint secret that contains the details for Prometheus API endpoint
 	if err := r.prometheusEndpointSecret(ctx, instance, helper, serviceLabels); err != nil {
 		return ctrl.Result{}, err
