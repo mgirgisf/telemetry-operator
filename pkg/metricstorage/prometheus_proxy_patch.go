@@ -22,6 +22,7 @@ func PrometheusProxy(instance *telemetryv1.MetricStorage) *unstructured.Unstruct
 						"args": []interface{}{
 							"--secure-listen-address=0.0.0.0:8443",
 							"--upstream=https://metric-storage-prometheus.openstack.svc:9090/",
+							"--upstream-ca-file=/etc/tls/ca.crt",
 							"--logtostderr=true",
 							"--v=10",
 						},
@@ -59,3 +60,4 @@ func PrometheusProxy(instance *telemetryv1.MetricStorage) *unstructured.Unstruct
 	}
 	return prom
 }
+
