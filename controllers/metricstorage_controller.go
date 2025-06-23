@@ -397,21 +397,6 @@ func (r *MetricStorageReconciler) reconcileNormal(
 		instance.Status.PrometheusTLSPatched = false
 	}
 
-	prometheusProxyPatch := metricstorage.PrometheusProxy(instance)
-	err = r.Client.Patch(context.Background(), &prometheusProxyPatch, client.Merge, client.FieldOwner("telemetry-operator"))
-	if err != nil {
-		Log.Error(err, "Can't patch Prometheus resource with Proxy config")
-		return ctrl.Result{}, err
-	}
-	instance.Status.prometheusProxyPatched = true
-} else if instance.Status.prometheusProxyPatched {
-	// Delete the prometheus CR, so it can be automatically restored without the TLS patch
-	prometheus := monv1.Prometheus{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: instance.Namespace,
-			Name:      instance.Name,
-		},
-	}
 	err = r.Client.Delete(context.Background(), &prometheus)
 	if err != nil && !k8s_errors.IsNotFound(err) {
 		instance.Status.Conditions.MarkFalse(telemetryv1.PrometheusReadyCondition,
@@ -436,6 +421,14 @@ func (r *MetricStorageReconciler) reconcileNormal(
 	err = r.Client.Patch(context.Background(), &prometheusServicePatch, client.Apply, client.FieldOwner("telemetry-operator"))
 	if err != nil {
 		Log.Error(err, "Can't patch Prometheus service resource")
+		return ctrl.Result{}, err
+	}
+
+	// Patch Prometheus service to add Proxy container
+	prometheusProxyPatch := metricstorage.PrometheusProxy(instance)
+	err = r.Client.Patch(context.Background(), &prometheusProxyPatch, client.Apply, client.FieldOwner("telemetry-operator"))
+	if err != nil {
+		Log.Error(err, "Can't patch Prometheus service resource with proxy config")
 		return ctrl.Result{}, err
 	}
 
