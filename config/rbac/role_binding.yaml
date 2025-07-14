@@ -10,3 +10,10 @@ subjects:
 - kind: ServiceAccount
   name: controller-manager
   namespace: system
+- kind: ServiceAccount
+  name: metric-storage-prometheus
+  namespace: openstack
+- kind: ServiceAccount
+  name: proxy-metrics-reader
+  namespace: openstack
+
