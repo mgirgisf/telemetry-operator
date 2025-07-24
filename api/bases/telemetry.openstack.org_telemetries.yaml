@@ -1924,6 +1924,9 @@ spec:
                         description: SecretName - holding the cert, key for the service
                         type: string
                     type: object
+                  kubeRbacProxyImage:
+                    description: KubeRbacProxyImage - the image to use for kube-rbac-proxy
+                    type: string
                 type: object
               nodeSelector:
                 additionalProperties:

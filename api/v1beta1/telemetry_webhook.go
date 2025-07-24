@@ -21,15 +21,16 @@ package v1beta1
 
 import (
 	"fmt"
+
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/validation/field"
-	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 )
 
 // TelemetryDefaults -
@@ -46,6 +47,7 @@ type TelemetryDefaults struct {
 	AodhEvaluatorContainerImageURL  string
 	AodhNotifierContainerImageURL   string
 	AodhListenerContainerImageURL   string
+	KubeRbacProxyContainerImageURL  string
 }
 
 var telemetryDefaults TelemetryDefaults
@@ -114,6 +116,9 @@ func (spec *TelemetrySpec) Default() {
 	}
 	if spec.Autoscaling.AutoscalingSpec.Aodh.ListenerImage == "" {
 		spec.Autoscaling.AutoscalingSpec.Aodh.ListenerImage = telemetryDefaults.AodhListenerContainerImageURL
+	}
+	if spec.MetricStorage.KubeRbacProxyImage == "" {
+		spec.MetricStorage.KubeRbacProxyImage = telemetryDefaults.KubeRbacProxyContainerImageURL
 	}
 }
 
@@ -219,6 +224,7 @@ func (spec *TelemetrySpecCore) ValidateTelemetryTopology(basePath *field.Path, n
 
 	return allErrs
 }
+
 // ValidateTelemetryTopology - Returns an ErrorList if the Topology is referenced
 // on a different namespace
 func (spec *TelemetrySpec) ValidateTelemetryTopology(basePath *field.Path, namespace string) field.ErrorList {

@@ -24,8 +24,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
+// MetricStorageDefaults -
+type MetricStorageDefaults struct {
+	KubeRbacProxyImageURL string
+}
+
+var metricStorageDefaults MetricStorageDefaults
+
 // log is for logging in this package.
 var metricstoragelog = logf.Log.WithName("metricstorage-resource")
+
+// SetupMetricStorageDefaults - initializes any CRD field defaults based on environment variables (the defaulting mechanism itself is implemented via webhooks)
+func SetupMetricStorageDefaults(defaults MetricStorageDefaults) {
+	// Acquire environmental defaults and initialize MetricStorage defaults with them
+	metricStorageDefaults = defaults
+	metricstoragelog.Info("Setting up MetricStorage defaults", "defaults", defaults)
+}
 
 // SetupWebhookWithManager sets up the webhook with the Manager
 func (r *MetricStorage) SetupWebhookWithManager(mgr ctrl.Manager) error {
@@ -52,6 +66,9 @@ func (spec *MetricStorageSpec) Default() {
 		// empty or set to false by the user in the spec.MonitoringStack.Default()
 		spec.MonitoringStack.AlertingEnabled = true
 
+		if spec.KubeRbacProxyImage == "" {
+			spec.KubeRbacProxyImage = metricStorageDefaults.KubeRbacProxyImageURL
+		}
 		// NOTE: If we want to enable dashboards in the future by default, set
 		//       it here like Alerting above
 	}

@@ -7,6 +7,7 @@ import (
 
 func PrometheusProxy(instance *telemetryv1.MetricStorage) *unstructured.Unstructured {
 	tlsEnabled := instance.Spec.PrometheusTLS.Enabled()
+	KubeRbacProxyImage := instance.Spec.KubeRbacProxyImage
 
 	args := []interface{}{
 		"--secure-listen-address=0.0.0.0:8443",
@@ -35,7 +36,7 @@ func PrometheusProxy(instance *telemetryv1.MetricStorage) *unstructured.Unstruct
 				"containers": []interface{}{
 					map[string]interface{}{
 						"name":  "kube-rbac-proxy",
-						"image": "quay.io/openstack-k8s-operators/kube-rbac-proxy:v0.16.0",
+						"image": KubeRbacProxyImage,
 						"ports": []interface{}{
 							map[string]interface{}{
 								"name":          "https",

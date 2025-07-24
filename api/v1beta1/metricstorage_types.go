@@ -20,8 +20,14 @@ import (
 	infranetworkv1 "github.com/openstack-k8s-operators/infra-operator/apis/network/v1beta1"
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	tls "github.com/openstack-k8s-operators/lib-common/modules/common/tls"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	obov1 "github.com/rhobs/observability-operator/pkg/apis/monitoring/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	// KubeRbacProxyImageContainerImage - default fall-back image for kube-rbac-proxy
+	KubeRbacProxyImageContainerImage = "quay.io/openstack-k8s-operators/kube-rbac-proxy:v0.16.0"
 )
 
 // PersistentStorage defines storage options used for persistent storage
@@ -113,6 +119,9 @@ type MetricStorageSpec struct {
 	// TLS - Parameters related to the TLS
 	PrometheusTLS tls.SimpleService `json:"prometheusTls,omitempty"`
 
+	// +kubebuilder:validation:Required
+	KubeRbacProxyImage string `json:"kubeRbacProxyImage"`
+
 	// TODO: Implement TLS for alertmanager Web UI
 	//       This currently isn't possible because of COO limitations.
 	//       See rh-jira: OSPRH-5177 and COO-44
@@ -167,4 +176,14 @@ func init() {
 // IsReady - returns true if MetricStorage is reconciled successfully
 func (instance MetricStorage) IsReady() bool {
 	return instance.Status.Conditions.IsTrue(condition.ReadyCondition)
+}
+
+// SetupDefaultsMetricStorage - initializes any CRD field defaults based on environment variables (the defaulting mechanism itself is implemented via webhooks)
+func SetupDefaults() {
+	// Acquire environmental defaults and initialize Telemetry defaults with them
+	metricStorageDefaults := MetricStorageDefaults{
+		KubeRbacProxyImageURL: util.GetEnvVar("RELATED_IMAGE_KUBE_RBAC_PROXY_IMAGE_URL_DEFAULT", KubeRbacProxyImageContainerImage),
+	}
+
+	SetupMetricStorageDefaults(metricStorageDefaults)
 }
