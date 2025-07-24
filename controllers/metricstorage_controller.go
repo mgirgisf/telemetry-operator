@@ -1144,11 +1144,23 @@ func getComputeNodesConnectionInfo(
 		if err != nil {
 			return []ConnectionInfo{}, err
 		}
-		nodeSetGroup := inventory.Groups[secret.Labels["openstackdataplanenodeset"]]
+		nodeSetName, exists := secret.Labels["openstackdataplanenodeset"]
+		if !exists {
+			continue // Skip this secret if it doesn't have the required label
+		}
+		nodeSetGroup, exists := inventory.Groups[nodeSetName]
+		if !exists {
+			continue // Skip if the group doesn't exist in inventory
+		}
 		containsTargetService := false
-		for _, svc := range nodeSetGroup.Vars["edpm_services"].([]interface{}) {
-			if svc.(string) == telemetryServiceName {
-				containsTargetService = true
+		if services, ok := nodeSetGroup.Vars["edpm_services"].([]interface{}); ok {
+			for _, svc := range services {
+				if svcStr, ok := svc.(string); ok {
+					if svcStr == telemetryServiceName {
+						containsTargetService = true
+						break
+					}
+				}
 			}
 		}
 		if !containsTargetService {
@@ -1222,7 +1234,11 @@ func getAddressFromIPSet(
 	item *ansible.Host,
 	helper *helper.Helper,
 ) (string, discoveryv1.AddressType) {
-	ansibleHost := item.Vars["ansible_host"].(string)
+	ansibleHost, ok := item.Vars["ansible_host"].(string)
+	if !ok {
+		helper.GetLogger().Info("ansible_host is not a string or is missing")
+		return "", ""
+	}
 	canonicalHostname, _ := getCanonicalHostname(item)
 	ctlplaneDNSDomain := ""
 
@@ -1255,7 +1271,7 @@ func getAddressFromIPSet(
 				return ansibleHost, discoveryv1.AddressTypeFQDN
 			}
 			// No IP address or valid hostname found anywhere
-			helper.GetLogger().Info("Did not found a valid hostname or IP address")
+			helper.GetLogger().Info("Did not find a valid hostname or IP address")
 			return "", ""
 		}
 	}
@@ -1263,7 +1279,7 @@ func getAddressFromIPSet(
 	if len(ipset.Status.Reservation) > 0 {
 		// search for the network specified in the Spec
 		for _, reservation := range ipset.Status.Reservation {
-			if reservation.Network == *instance.Spec.DataplaneNetwork {
+			if instance.Spec.DataplaneNetwork != nil && reservation.Network == *instance.Spec.DataplaneNetwork {
 				return reservation.Address, discoveryv1.AddressTypeIPv4
 			}
 		}
@@ -1273,7 +1289,10 @@ func getAddressFromIPSet(
 }
 
 func getAddressFromAnsibleHost(item *ansible.Host) (string, discoveryv1.AddressType) {
-	ansibleHost := item.Vars["ansible_host"].(string)
+	ansibleHost, ok := item.Vars["ansible_host"].(string)
+	if !ok {
+		return "", ""
+	}
 	// check if ansiblehost is an IP
 	addr := net.ParseIP(ansibleHost)
 	if addr != nil {
@@ -1428,7 +1447,7 @@ func (r *MetricStorageReconciler) SetupWithManager(ctx context.Context, mgr ctrl
 func (r *MetricStorageReconciler) findObjectsForSrc(ctx context.Context, src client.Object) []reconcile.Request {
 	requests := []reconcile.Request{}
 
-	l := log.FromContext(context.Background()).WithName("Controllers").WithName("MetricStorage")
+	Log := r.GetLogger(ctx)
 
 	for _, field := range prometheusAllWatchFields {
 		crList := &telemetryv1.MetricStorageList{}
@@ -1442,7 +1461,7 @@ func (r *MetricStorageReconciler) findObjectsForSrc(ctx context.Context, src cli
 		}
 
 		for _, item := range crList.Items {
-			l.Info(fmt.Sprintf("input source %s changed, reconcile: %s - %s", src.GetName(), item.GetName(), item.GetNamespace()))
+			Log.Info(fmt.Sprintf("input source %s changed, reconcile: %s - %s", src.GetName(), item.GetName(), item.GetNamespace()))
 
 			requests = append(requests,
 				reconcile.Request{
@@ -1459,7 +1478,7 @@ func (r *MetricStorageReconciler) findObjectsForSrc(ctx context.Context, src cli
 }
 
 func (r *MetricStorageReconciler) nodeSetWatchFn(ctx context.Context, o client.Object) []reconcile.Request {
-	l := log.FromContext(context.Background()).WithName("Controllers").WithName("MetricStorage")
+	Log := r.GetLogger(ctx)
 	// Reconcile all metricstorages when a nodeset changes
 	result := []reconcile.Request{}
 
@@ -1469,7 +1488,7 @@ func (r *MetricStorageReconciler) nodeSetWatchFn(ctx context.Context, o client.O
 		client.InNamespace(o.GetNamespace()),
 	}
 	if err := r.Client.List(ctx, metricstorages, listOpts...); err != nil {
-		l.Error(err, "Unable to retrieve MetricStorage CRs %v")
+		Log.Error(err, "Unable to retrieve MetricStorage CRs %v")
 		return nil
 	}
 	for _, cr := range metricstorages.Items {
