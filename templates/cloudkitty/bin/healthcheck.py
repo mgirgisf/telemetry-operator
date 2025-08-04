@@ -14,47 +14,110 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-# Trivial HTTP server to check health of scheduler, backup and volume services.
-# Cinder-API hast its own health check endpoint and does not need this.
+# CloudKitty-API has its own health check endpoint and does not need this.
 #
-# The only check this server currently does is using the heartbeat in the
-# database service table, accessing the DB directly here using cinder's
-# configuration options.
+# This script performs a series of checks on the CloudKitty processor's dependencies,
+#  including the database, Keystone, and the Prometheus collector.
 #
-# The benefit of accessing the DB directly is that it doesn't depend on the
-# Cinder-API service being up and we can also differentiate between the
-# container not having a connection to the DB and the cinder service not doing
-# the heartbeats.
-#
-# For volume services all enabled backends must be up to return 200, so it is
-# recommended to use a different pod for each backend to avoid one backend
-# affecting others.
-#
-# Requires the name of the service as the first argument (volume, backup,
-# scheduler) and optionally a second argument with the location of the
-# configuration directory (defaults to /etc/cinder/cinder.conf.d)
+# Configuration directory (defaults to /etc/cloudkitty/cloudkitty.conf)
 
-from http import server
+#!/usr/bin/env python
+
+import http.server
 import signal
 import socket
 import sys
 import time
 import threading
-
+import requests
+import sqlalchemy
 from oslo_config import cfg
+from oslo_db.sqlalchemy import enginefacade
+
 
 SERVER_PORT = 8080
 CONF = cfg.CONF
+SERVICE_NAME = 'cloudkitty-processor'
 
-class HTTPServerV6(server.HTTPServer):
-  address_family = socket.AF_INET6
 
-class HeartbeatServer(server.BaseHTTPRequestHandler):
+class HTTPServerV6(http.server.HTTPServer):
+    address_family = socket.AF_INET6
+
+
+class HealthCheckError(Exception):
+    def __init__(self, message):
+        super(HealthCheckError, self).__init__(message)
+
+
+
+class HeartbeatServer(http.server.BaseHTTPRequestHandler):
+
+    def perform_checks():
+
+        print("Starting health checks")
+        results = {}
+
+        # Database Connectivity check
+        try:
+            db_connection_str = CONF.database.connection
+            engine = enginefacade.get_engine(connection=db_connection_str)
+            with engine.connect():
+                results['database'] = 'OK'
+                print("Database connectivity check passed.")
+        except (cfg.ConfigFilesNotFoundError, sqlalchemy.exc.OperationalError) as e:
+            results['database'] = 'FAIL'
+            print(f"ERROR: Database connectivity check failed: {e}")
+            return False, results
+
+        # Keystone Endpoint Reachability
+        try:
+            keystone_uri = CONF.keystone_authtoken.auth_url
+            response = requests.get(keystone_uri, timeout=5)
+            response.raise_for_status()
+            if 'keystone' in response.headers.get('Server', '').lower():
+                results['keystone_endpoint'] = 'OK'
+                print("Keystone endpoint reachable and responsive.")
+            else:
+                results['keystone_endpoint'] = 'WARN'
+                print(f"Keystone endpoint reachable, but not a valid service: {keystone_uri}")
+        except requests.exceptions.RequestException as e:
+            results['keystone_endpoint'] = 'FAIL'
+            print(f"ERROR: Keystone endpoint check failed: {e}")
+            return False, results
+
+        # Prometheus Collector Endpoint
+        try:
+            prometheus_url = CONF.collector_prometheus.prometheus_url
+            insecure = CONF.collector_prometheus.insecure
+            cafile = CONF.collector_prometheus.cafile
+            verify_ssl = cafile if cafile and not insecure else not insecure
+
+            response = requests.get(prometheus_url, timeout=5, verify=verify_ssl)
+            response.raise_for_status()
+            results['collector_endpoint'] = 'OK'
+            print("Prometheus collector endpoint reachable.")
+        except requests.exceptions.RequestException as e:
+            results['collector_endpoint'] = 'FAIL'
+            print(f"ERROR: Prometheus collector check failed: {e}")
+            return False, results
+
+        print("All  checks passed.")
+        return True, results
+
     def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write('<html><body>OK</body></html>'.encode('utf-8'))
+        print("Received health check request.")
+        try:
+            # Perform all checks and respond based on the result
+            success, _ = self.perform_checks()
+            if success:
+                self.send_response(200)
+                self.send_header("Content-type", "text/html")
+                self.end_headers()
+                self.wfile.write('<html><body>OK</body></html>'.encode('utf-8'))
+            else:
+                self.send_error(500, "Health check failed", "One or more dependencies are unhealthy.")
+        except Exception as e:
+            self.send_error(500, "Internal Server Error", str(e))
 
 
 def get_stopper(server):
@@ -67,22 +130,41 @@ def get_stopper(server):
     return stopper
 
 
-if __name__ == "__main__":
+def main():
+    # Register all necessary configuration options
+    cfg.CONF.register_group(cfg.OptGroup(name='database', title='Database Options'))
+    cfg.CONF.register_opt(cfg.StrOpt('connection', default='sqlite:///:memory:'), group='database')
+
+    cfg.CONF.register_group(cfg.OptGroup(name='keystone_authtoken', title='Keystone Auth Token Options'))
+    cfg.CONF.register_opt(cfg.StrOpt('auth_url', default='http://localhost:5000/v3'), group='keystone_authtoken')
+
+    cfg.CONF.register_group(cfg.OptGroup(name='collector_prometheus', title='Prometheus Collector Options'))
+    cfg.CONF.register_opt(cfg.StrOpt('prometheus_url', default='http://metric-storage-prometheus.openstack.svc:9090'), group='collector_prometheus')
+    cfg.CONF.register_opt(cfg.BoolOpt('insecure', default=False), group='collector_prometheus')
+    cfg.CONF.register_opt(cfg.StrOpt('cafile', default=None), group='collector_prometheus')
+
+
+    # Load the configuration file.
+    try:
+        cfg.CONF(sys.argv[1:], default_config_files=['/etc/cloudkitty/cloudkitty.conf'])
+    except cfg.ConfigFilesNotFoundError as e:
+        print(f"Health check failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+    # Start the HTTP server
     hostname = socket.gethostname()
     ipv6_address = socket.getaddrinfo(hostname, None, socket.AF_INET6)
     if ipv6_address:
-        webServer = HTTPServerV6(("::",SERVER_PORT), HeartbeatServer)
+        webServer = HTTPServerV6(("::", SERVER_PORT), HeartbeatServer)
     else:
-        webServer = server.HTTPServer(("0.0.0.0", SERVER_PORT), HeartbeatServer)
-    stop = get_stopper(webServer)
+        webServer = http.server.HTTPServer(("0.0.0.0", SERVER_PORT), HeartbeatServer)
 
-    # Need to run the server on a different thread because its shutdown method
-    # will block if called from the same thread, and the signal handler must be
-    # on the main thread in Python.
+    stop = get_stopper(webServer)
     thread = threading.Thread(target=webServer.serve_forever)
     thread.daemon = True
     thread.start()
-    print(f"CloudKitty Healthcheck Server started http://{hostname}:{SERVER_PORT}")
+    print(f"CloudKitty Processor Healthcheck Server started http://{hostname}:{SERVER_PORT}")
     signal.signal(signal.SIGTERM, stop)
 
     try:
@@ -92,3 +174,7 @@ if __name__ == "__main__":
         pass
     finally:
         stop()
+
+
+if __name__ == "__main__":
+    main()
