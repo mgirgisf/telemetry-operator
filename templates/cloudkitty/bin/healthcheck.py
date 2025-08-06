@@ -14,78 +14,52 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-# CloudKitty-API has its own health check endpoint and does not need this.
-#
-# This script performs a series of checks on the CloudKitty processor's dependencies,
-#  including the database, Keystone, and the Prometheus collector.
-#
-# Configuration directory (defaults to /etc/cloudkitty/cloudkitty.conf)
 
-#!/usr/bin/env python
-
-import http.server
+from http import server
 import signal
 import socket
 import sys
 import time
 import threading
 import requests
-import sqlalchemy
+
 from oslo_config import cfg
-from oslo_db.sqlalchemy import enginefacade
 
 
 SERVER_PORT = 8080
 CONF = cfg.CONF
-SERVICE_NAME = 'cloudkitty-processor'
 
 
-class HTTPServerV6(http.server.HTTPServer):
+class HTTPServerV6(server.HTTPServer):
     address_family = socket.AF_INET6
 
 
-class HealthCheckError(Exception):
-    def __init__(self, message):
-        super(HealthCheckError, self).__init__(message)
+class HeartbeatServer(server.BaseHTTPRequestHandler):
 
-
-
-class HeartbeatServer(http.server.BaseHTTPRequestHandler):
-
-    def perform_checks():
-
+    @staticmethod
+    def check_services():
         print("Starting health checks")
         results = {}
 
-        # Database Connectivity check
-        try:
-            db_connection_str = CONF.database.connection
-            engine = enginefacade.get_engine(connection=db_connection_str)
-            with engine.connect():
-                results['database'] = 'OK'
-                print("Database connectivity check passed.")
-        except (cfg.ConfigFilesNotFoundError, sqlalchemy.exc.OperationalError) as e:
-            results['database'] = 'FAIL'
-            print(f"ERROR: Database connectivity check failed: {e}")
-            return False, results
-
+        # Todo Database Endpoint Reachability
         # Keystone Endpoint Reachability
         try:
             keystone_uri = CONF.keystone_authtoken.auth_url
             response = requests.get(keystone_uri, timeout=5)
             response.raise_for_status()
-            if 'keystone' in response.headers.get('Server', '').lower():
+            server_header = response.headers.get('Server', '').lower()
+            if 'keystone' in server_header:
                 results['keystone_endpoint'] = 'OK'
                 print("Keystone endpoint reachable and responsive.")
             else:
                 results['keystone_endpoint'] = 'WARN'
-                print(f"Keystone endpoint reachable, but not a valid service: {keystone_uri}")
+                print(f"Keystone endpoint reachable, but not a valid Keystone service: {keystone_uri}")
         except requests.exceptions.RequestException as e:
             results['keystone_endpoint'] = 'FAIL'
             print(f"ERROR: Keystone endpoint check failed: {e}")
-            return False, results
+            raise Exception('ERROR: Keystone check failed', e)
 
-        # Prometheus Collector Endpoint
+        # Prometheus Collector Endpoint Reachability
         try:
             prometheus_url = CONF.collector_prometheus.prometheus_url
             insecure = CONF.collector_prometheus.insecure
@@ -99,25 +73,19 @@ class HeartbeatServer(http.server.BaseHTTPRequestHandler):
         except requests.exceptions.RequestException as e:
             results['collector_endpoint'] = 'FAIL'
             print(f"ERROR: Prometheus collector check failed: {e}")
-            return False, results
-
-        print("All  checks passed.")
-        return True, results
+            raise Exception('ERROR: Prometheus collector check failed', e)
 
     def do_GET(self):
-        print("Received health check request.")
         try:
-            # Perform all checks and respond based on the result
-            success, _ = self.perform_checks()
-            if success:
-                self.send_response(200)
-                self.send_header("Content-type", "text/html")
-                self.end_headers()
-                self.wfile.write('<html><body>OK</body></html>'.encode('utf-8'))
-            else:
-                self.send_error(500, "Health check failed", "One or more dependencies are unhealthy.")
-        except Exception as e:
-            self.send_error(500, "Internal Server Error", str(e))
+            self.check_services()
+        except Exception as exc:
+            self.send_error(500, exc.args[0], exc.args[1])
+            return
+
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write('<html><body>OK</body></html>'.encode('utf-8'))
 
 
 def get_stopper(server):
@@ -130,41 +98,51 @@ def get_stopper(server):
     return stopper
 
 
-def main():
-    # Register all necessary configuration options
-    cfg.CONF.register_group(cfg.OptGroup(name='database', title='Database Options'))
-    cfg.CONF.register_opt(cfg.StrOpt('connection', default='sqlite:///:memory:'), group='database')
+if __name__ == "__main__":
+    # Register config options
+    cfg.CONF.register_group(cfg.OptGroup(name='database', title='Database connection options'))
+    cfg.CONF.register_opt(cfg.StrOpt('connection', default=None), group='database')
 
     cfg.CONF.register_group(cfg.OptGroup(name='keystone_authtoken', title='Keystone Auth Token Options'))
-    cfg.CONF.register_opt(cfg.StrOpt('auth_url', default='http://localhost:5000/v3'), group='keystone_authtoken')
+    cfg.CONF.register_opt(cfg.StrOpt('auth_url',
+                                    default='https://keystone-internal.openstack.svc:5000'),
+                         group='keystone_authtoken')
 
     cfg.CONF.register_group(cfg.OptGroup(name='collector_prometheus', title='Prometheus Collector Options'))
-    cfg.CONF.register_opt(cfg.StrOpt('prometheus_url', default='http://metric-storage-prometheus.openstack.svc:9090'), group='collector_prometheus')
+    cfg.CONF.register_opt(cfg.StrOpt('prometheus_url',
+                                    default='http://metric-storage-prometheus.openstack.svc:9090'),
+                         group='collector_prometheus')
     cfg.CONF.register_opt(cfg.BoolOpt('insecure', default=False), group='collector_prometheus')
     cfg.CONF.register_opt(cfg.StrOpt('cafile', default=None), group='collector_prometheus')
 
-
-    # Load the configuration file.
+    # Load configuration from file
     try:
-        cfg.CONF(sys.argv[1:], default_config_files=['/etc/cloudkitty/cloudkitty.conf'])
+        cfg.CONF(sys.argv[1:], default_config_files=['/etc/cloudkitty/cloudkitty.conf.d/cloudkitty.conf'])
     except cfg.ConfigFilesNotFoundError as e:
         print(f"Health check failed: {e}", file=sys.stderr)
         sys.exit(1)
 
-
-    # Start the HTTP server
+    # Detect IPv6 support for binding
     hostname = socket.gethostname()
-    ipv6_address = socket.getaddrinfo(hostname, None, socket.AF_INET6)
+    try:
+        ipv6_address = socket.getaddrinfo(hostname, None, socket.AF_INET6)
+    except socket.gaierror:
+        ipv6_address = None
+
     if ipv6_address:
         webServer = HTTPServerV6(("::", SERVER_PORT), HeartbeatServer)
     else:
-        webServer = http.server.HTTPServer(("0.0.0.0", SERVER_PORT), HeartbeatServer)
+        webServer = server.HTTPServer(("0.0.0.0", SERVER_PORT), HeartbeatServer)
 
     stop = get_stopper(webServer)
+
+    # Need to run the server on a different thread because its shutdown method
+    # will block if called from the same thread, and the signal handler must be
+    # on the main thread in Python.
     thread = threading.Thread(target=webServer.serve_forever)
     thread.daemon = True
     thread.start()
-    print(f"CloudKitty Processor Healthcheck Server started http://{hostname}:{SERVER_PORT}")
+    print(f"CloudKitty Healthcheck Server started http://{hostname}:{SERVER_PORT}")
     signal.signal(signal.SIGTERM, stop)
 
     try:
@@ -174,7 +152,3 @@ def main():
         pass
     finally:
         stop()
-
-
-if __name__ == "__main__":
-    main()

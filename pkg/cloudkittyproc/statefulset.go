@@ -44,6 +44,7 @@ func StatefulSet(
 	// cloudKittyUser := int64(telemetryv1.CloudKittyUserID)
 	// cloudKittyGroup := int64(telemetryv1.CloudKittyGroupID)
 
+	// TODO until we determine how to properly query for these
 	livenessProbe := &corev1.Probe{
 		// TODO might need tuning
 		TimeoutSeconds:      5,
@@ -65,9 +66,8 @@ func StatefulSet(
 	}
 	startupProbe.HTTPGet = livenessProbe.HTTPGet
 	probeCommand = []string{
-		"/usr/local/bin/container-scripts/healthcheck.py",
-		"processor",
-		"/etc/cloudkitty/cloudkitty.conf.d",
+		"/var/lib/openstack/bin/healthcheck.py",
+		"/etc/cloudkitty/cloudkitty.conf.d/cloudkitty.conf",
 	}
 
 	envVars := map[string]env.Setter{}
