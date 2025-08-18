@@ -202,6 +202,7 @@ func main() {
 	telemetryv1beta1.SetupDefaultsTelemetry()
 	telemetryv1beta1.SetupDefaultsCeilometer()
 	telemetryv1beta1.SetupDefaultsAutoscaling()
+	telemetryv1beta1.SetupDefaultsMetricStorage()
 
 	// Setup webhooks if requested
 	checker := healthz.Ping

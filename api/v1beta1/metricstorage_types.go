@@ -119,7 +119,7 @@ type MetricStorageSpec struct {
 	// TLS - Parameters related to the TLS
 	PrometheusTLS tls.SimpleService `json:"prometheusTls,omitempty"`
 
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	KubeRbacProxyImage string `json:"kubeRbacProxyImage"`
 
 	// TODO: Implement TLS for alertmanager Web UI
@@ -179,7 +179,7 @@ func (instance MetricStorage) IsReady() bool {
 }
 
 // SetupDefaultsMetricStorage - initializes any CRD field defaults based on environment variables (the defaulting mechanism itself is implemented via webhooks)
-func SetupDefaults() {
+func SetupDefaultsMetricStorage() {
 	// Acquire environmental defaults and initialize Telemetry defaults with them
 	metricStorageDefaults := MetricStorageDefaults{
 		KubeRbacProxyImageURL: util.GetEnvVar("RELATED_IMAGE_KUBE_RBAC_PROXY_IMAGE_URL_DEFAULT", KubeRbacProxyImageContainerImage),

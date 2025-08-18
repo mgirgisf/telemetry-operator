@@ -66,9 +66,6 @@ func (spec *MetricStorageSpec) Default() {
 		// empty or set to false by the user in the spec.MonitoringStack.Default()
 		spec.MonitoringStack.AlertingEnabled = true
 
-		if spec.KubeRbacProxyImage == "" {
-			spec.KubeRbacProxyImage = metricStorageDefaults.KubeRbacProxyImageURL
-		}
 		// NOTE: If we want to enable dashboards in the future by default, set
 		//       it here like Alerting above
 	}
@@ -79,6 +76,10 @@ func (spec *MetricStorageSpec) Default() {
 
 	if spec.MonitoringStack != nil {
 		spec.MonitoringStack.Default()
+	}
+
+	if spec.KubeRbacProxyImage == "" {
+		spec.KubeRbacProxyImage = metricStorageDefaults.KubeRbacProxyImageURL
 	}
 }
 
